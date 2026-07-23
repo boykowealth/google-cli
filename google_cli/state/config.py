@@ -36,7 +36,7 @@ class Config:
     api_key: str = ""
     cx: str = ""
     homepage: str = ""
-    theme: str = "dark"  # "dark" or "light"; runtime toggle (F6) overrides this
+    theme: str = "light"  # "dark" or "light"; runtime toggle (F6) overrides this
     default_tabs: list[str] = field(
         default_factory=lambda: [
             "https://mail.google.com/",

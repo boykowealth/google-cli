@@ -76,8 +76,18 @@ class PageView(VerticalScroll):
         )
         self.scroll_home(animate=False)
 
-    def show_search(self, query: str, results: list[SearchResult]) -> None:
-        lines = [f"[dim]Results for[/dim] [bold]{escape(query)}[/bold]", ""]
+    def show_search(
+        self,
+        query: str,
+        results: list[SearchResult],
+        *,
+        page: int = 0,
+        has_next: bool = False,
+    ) -> None:
+        header = f"[dim]Results for[/dim] [bold]{escape(query)}[/bold]"
+        if page > 0:
+            header += f"  [dim]· page {page + 1}[/dim]"
+        lines = [header, ""]
         if not results:
             lines.append("[dim]No results found (or the search service was unreachable).[/dim]")
         for i, r in enumerate(results, start=1):
@@ -89,5 +99,13 @@ class PageView(VerticalScroll):
             if r.snippet:
                 lines.append(f"[dim]{escape(r.snippet)}[/dim]")
             lines.append("")
+        # Pagination hint footer.
+        nav = []
+        if page > 0:
+            nav.append("[b]p[/b] previous")
+        if has_next:
+            nav.append("[b]n[/b] next page")
+        if nav:
+            lines.append(f"[dim]{'  ·  '.join(nav)}[/dim]")
         self._content.update("\n".join(lines))
         self.scroll_home(animate=False)

@@ -11,13 +11,13 @@ from urllib.parse import urlparse
 
 KNOWN_APPS: dict[str, str] = {
     "mail.google.com": "Gmail",
-    "calendar.google.com": "Google Calendar",
-    "drive.google.com": "Google Drive",
-    "docs.google.com": "Google Docs",
-    "sheets.google.com": "Google Sheets",
-    "meet.google.com": "Google Meet",
-    "keep.google.com": "Google Keep",
-    "photos.google.com": "Google Photos",
+    "calendar.google.com": "Calendar",
+    "drive.google.com": "Drive",
+    "docs.google.com": "Docs",
+    "sheets.google.com": "Sheets",
+    "meet.google.com": "Meet",
+    "keep.google.com": "Keep",
+    "photos.google.com": "Photos",
 }
 
 
@@ -42,7 +42,7 @@ def card_lines(name: str, url: str) -> list[str]:
         f"[dim]{name} is an interactive web app — it needs a full browser"
         " (JavaScript and your Google sign-in), so it can't be shown as text here.[/dim]",
         "",
-        "[#4285F4]Press [b]Ctrl+O[/b] to open it in your real browser ↗[/]",
+        "[#4285F4]Opening it in your browser…  press [b]Ctrl+O[/b] to open it again ↗[/]",
         "",
         f"[dim]{url}[/dim]",
     ]

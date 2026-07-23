@@ -41,11 +41,14 @@ readable pages, all without leaving the command line.
 - **Back / forward & history** — a per-tab navigation stack plus persistent, browsable history.
 - **Bookmarks** — star pages and reopen them anytime; saved to disk.
 - **Readable rendering** — pages are distilled to their main content, with **numbered links**
-  you follow by typing a number or clicking.
+  you follow by typing a number or clicking. Headings, lists, code and **HTML tables**
+  (drawn as aligned boxes) are preserved.
+- **Paged search** — results page with `n` (next) and `p` (previous); no getting stuck at ten.
 - **Hand off to your real browser** — press `Ctrl+O` to open the current page in your system's
-  GUI browser at any time. Web apps that need JavaScript + sign-in (**Gmail**, **Google
-  Calendar**, Docs, Drive…) show a one-key hand-off card instead of failing to render.
-- **Default tabs** — start with Gmail and Calendar open (configurable), ready to hand off.
+  GUI browser at any time. Web apps that need JavaScript + sign-in (**Gmail**, **Calendar**,
+  Docs, Drive…) can't render as text, so selecting their tab **opens them in your browser
+  automatically**.
+- **Default tabs** — start with **Gmail** and **Calendar** tabs open (configurable).
 - **Keyboard-first** — everything is a shortcut; `Tab` also moves focus through the tabs and
   controls. Mouse clicks work too, but you never need them.
 - **Pluggable search** — DuckDuckGo out of the box (no API key), or plug in the Google
@@ -97,6 +100,7 @@ Everything is keyboard-first (and mouse-clickable where it helps).
 | `Ctrl+L` | Focus the omnibox |
 | `Enter` | Visit URL / search / follow a typed link number |
 | *digits* then `Enter` | Follow link `[n]` on the page (`Esc` cancels) |
+| `n` / `p` | Next / previous page of search results |
 | `Ctrl+T` / `Ctrl+W` | New tab / close tab |
 | `Ctrl+Tab` | Next tab |
 | `Alt+←` / `Alt+→` | Back / forward |
@@ -116,7 +120,7 @@ Settings live in a TOML file at `~/.config/google-cli/config.toml` (all fields o
 ```toml
 [general]
 homepage = "https://news.ycombinator.com"   # optional: open one page instead of default tabs
-theme = "dark"                               # "dark" or "light" (F6 toggles, and is remembered)
+theme = "light"                              # "light" (default) or "dark" (F6 toggles, remembered)
 
 # Tabs opened at startup (loaded lazily when you first view them).
 default_tabs = [

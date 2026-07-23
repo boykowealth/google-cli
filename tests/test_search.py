@@ -1,3 +1,4 @@
+from google_cli.search.duckduckgo import parse_next_cursor
 from google_cli.search.duckduckgo import parse_results as ddg_parse
 from google_cli.search.google_api import parse_results as google_parse
 
@@ -53,3 +54,24 @@ def test_google_api_parses_items():
 
 def test_google_api_empty_on_no_items():
     assert google_parse({}) == []
+
+
+def test_ddg_next_cursor_captures_form_fields():
+    html = """
+    <div class="nav-link">
+      <form action="/html/" method="post">
+        <input type="hidden" name="q" value="cats">
+        <input type="hidden" name="s" value="30">
+        <input type="hidden" name="nextParams" value="xyz">
+        <input type="hidden" name="vqd" value="4-abc">
+        <input type="submit" value="Next">
+      </form>
+    </div>
+    """
+    cursor = parse_next_cursor(html, "cats")
+    assert cursor == {"q": "cats", "s": "30", "nextParams": "xyz", "vqd": "4-abc"}
+
+
+def test_ddg_next_cursor_none_when_no_next_form():
+    html = '<div class="result"><a class="result__a" href="https://x.test">X</a></div>'
+    assert parse_next_cursor(html, "cats") is None

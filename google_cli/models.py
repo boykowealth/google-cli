@@ -65,3 +65,16 @@ class SearchResult:
     title: str
     url: str
     snippet: str = ""
+
+
+@dataclass(slots=True)
+class SearchPage:
+    """A page of search results plus an opaque cursor for the next page.
+
+    ``next_cursor`` is engine-specific state (a form-field dict for DuckDuckGo, a
+    start-index for the Google API) that is passed back to fetch the following
+    page. ``None`` means there are no more results.
+    """
+
+    results: list[SearchResult]
+    next_cursor: object | None = None

@@ -151,6 +151,9 @@ class _Builder:
             self._list_depth -= 1
             self._blank()
             return
+        if name == "table":
+            self._table(tag)
+            return
         if name == "br":
             self.flush()
             return
@@ -186,3 +189,61 @@ class _Builder:
         alt = (tag.get("alt") or "").strip()
         label = alt if alt else "image"
         self._push(f"[dim]\\[image: {escape(label)}][/dim]")
+
+    def _table(self, tag: Tag) -> None:
+        """Render an HTML table as an aligned, box-drawn text table."""
+        header: list[str] | None = None
+        rows: list[list[str]] = []
+        for tr in tag.find_all("tr"):
+            cells = tr.find_all(["th", "td"])
+            texts = [re.sub(r"\s+", " ", c.get_text(" ", strip=True)) for c in cells]
+            if not texts:
+                continue
+            if header is None and cells and all(c.name == "th" for c in cells):
+                header = texts
+            else:
+                rows.append(texts)
+        if header is None and not rows:
+            return
+
+        all_rows = ([header] if header else []) + rows
+        ncols = max(len(r) for r in all_rows)
+        all_rows = [r + [""] * (ncols - len(r)) for r in all_rows]
+
+        # Keep the whole table within a sensible width by capping column width.
+        col_cap = max(8, 64 // ncols)
+        widths = [
+            min(max((len(r[c]) for r in all_rows), default=3), col_cap)
+            for c in range(ncols)
+        ]
+
+        def border(left: str, mid: str, right: str) -> str:
+            bar = mid.join("─" * (w + 2) for w in widths)
+            return f"[dim]{left}{bar}{right}[/dim]"
+
+        def row(cells: list[str], *, bold: bool = False) -> str:
+            parts = []
+            for c in range(ncols):
+                cell = escape(_fit(cells[c], widths[c]))
+                parts.append(f"[bold]{cell}[/bold]" if bold else cell)
+            inner = " [dim]│[/dim] ".join(parts)
+            return f"[dim]│[/dim] {inner} [dim]│[/dim]"
+
+        self._blank()
+        self.flush()
+        self.lines.append(border("┌", "┬", "┐"))
+        if header:
+            self.lines.append(row(all_rows[0], bold=True))
+            self.lines.append(border("├", "┼", "┤"))
+        body = all_rows[1:] if header else all_rows
+        for r in body:
+            self.lines.append(row(r))
+        self.lines.append(border("└", "┴", "┘"))
+        self._blank()
+
+
+def _fit(text: str, width: int) -> str:
+    """Truncate with an ellipsis if needed, then pad to exactly ``width``."""
+    if len(text) > width:
+        return text[: width - 1] + "…"
+    return text.ljust(width)

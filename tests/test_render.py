@@ -36,6 +36,22 @@ def test_image_alt_placeholder_present():
     assert "image: A cat" in body
 
 
+def test_table_renders_as_box():
+    html = """
+    <table>
+      <tr><th>Name</th><th>Role</th></tr>
+      <tr><td>Ada</td><td>Engineer</td></tr>
+      <tr><td>Grace</td><td>Admiral</td></tr>
+    </table>
+    """
+    page = render(html, base_url="https://s.test/", title="T", url="https://s.test/")
+    body = "\n".join(page.lines)
+    # Box-drawing borders and the cell contents are present.
+    assert "┌" in body and "┴" in body and "│" in body
+    assert "Name" in body and "Role" in body
+    assert "Ada" in body and "Engineer" in body and "Grace" in body
+
+
 def test_link_lookup_by_number():
     html = '<a href="/one">one</a><a href="/two">two</a>'
     page = render(html, base_url="https://s.test/", title="T", url="https://s.test/")

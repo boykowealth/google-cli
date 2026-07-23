@@ -113,6 +113,11 @@ class BrowserApp(App):
         )
         self._initial = initial.strip()
         self._link_buffer = ""
+        # Search pagination state (n / p keys).
+        self._search_query = ""
+        self._search_page = 0
+        self._page_cursor: dict[int, object | None] = {0: None}
+        self._next_cursor: dict[int, object | None] = {}
 
     # -- composition -------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -220,7 +225,16 @@ class BrowserApp(App):
             tab.page = page
             self._page_view.loading = False
             self._page_view.show_page(page)
-            self._status.show_message(f"{app_name} · press Ctrl+O to open in your browser")
+            # Selecting a web-app tab opens it in the real browser automatically
+            # (once per tab), so the user never has to reach for Ctrl+O.
+            if not tab.app_opened:
+                tab.app_opened = True
+                if self._open_in_browser(url):
+                    self._status.show_message(f"Opening {app_name} in your browser…")
+                else:
+                    self._status.show_message(f"{app_name} · press Ctrl+O to open it")
+            else:
+                self._status.show_message(f"{app_name} · press Ctrl+O to reopen")
             self._sync_chrome()
             self.call_later(self._tabbar.refresh_tabs)
             return
@@ -269,27 +283,68 @@ class BrowserApp(App):
         self._status.show_message(f"Loaded · {len(page.links)} links")
         await self._after_load()
 
-    def _search(self, query: str) -> None:
+    def _search(self, query: str, *, record: bool = True) -> None:
         tab = self.tabs.active
-        marker = f"search:{query}"
-        tab.visit(marker)
+        if record:
+            tab.visit(f"search:{query}")
+        # Reset pagination for a fresh query.
+        self._search_query = query
+        self._search_page = 0
+        self._page_cursor = {0: None}
+        self._next_cursor = {}
         self._omnibox.set_url(query)
         self._page_view.show_loading(f"search · {query}")
         self._status.show_loading(f"searching {self.engine.name}")
         self._sync_chrome()
-        self._search_worker(query)
+        self._search_worker(query, 0, None)
 
     @work(exclusive=True, group="load")
-    async def _search_worker(self, query: str) -> None:
+    async def _search_worker(self, query: str, page: int, cursor: object | None) -> None:
         self._page_view.loading = True
-        results = await self.engine.search(query)
+        sp = await self.engine.search(query, limit=20, cursor=cursor)
         tab = self.tabs.active
-        page = Page(url=f"search:{query}", title=f"{query} — {self.engine.name}")
-        page.links = [Link(index=i, text=r.title, url=r.url) for i, r in enumerate(results, 1)]
-        tab.page = page
-        self._page_view.show_search(query, results)
-        self._status.show_message(f"{len(results)} results · {self.engine.name}")
+        if not sp.results and page > 0:
+            # Ran past the last page — keep the current one on screen.
+            self._page_view.loading = False
+            self._status.show_message("No more results")
+            return
+        self._search_page = page
+        self._next_cursor[page] = sp.next_cursor
+        page_obj = Page(url=f"search:{query}", title=f"{query} — {self.engine.name}")
+        page_obj.links = [
+            Link(index=i, text=r.title, url=r.url) for i, r in enumerate(sp.results, 1)
+        ]
+        tab.page = page_obj
+        self._page_view.show_search(
+            query, sp.results, page=page, has_next=sp.next_cursor is not None
+        )
+        pages_hint = f"page {page + 1}"
+        self._status.show_message(
+            f"{len(sp.results)} results · {pages_hint} · {self.engine.name}"
+        )
         await self._after_load(record_history=False)
+
+    def _is_search_view(self) -> bool:
+        page = self.tabs.active.page
+        return bool(page and page.url.startswith("search:"))
+
+    def _paginate(self, delta: int) -> None:
+        """Load the next (delta>0) or previous (delta<0) page of results."""
+        if not self._is_search_view():
+            return
+        cur = self._search_page
+        if delta > 0:
+            nxt = self._next_cursor.get(cur)
+            if nxt is None:
+                self._status.show_message("No more results")
+                return
+            self._page_cursor[cur + 1] = nxt
+            self._search_worker(self._search_query, cur + 1, nxt)
+        else:
+            if cur <= 0:
+                self._status.show_message("Already at the first page")
+                return
+            self._search_worker(self._search_query, cur - 1, self._page_cursor.get(cur - 1))
 
     async def _after_load(self, *, record_history: bool = True) -> None:
         tab = self.tabs.active
@@ -367,18 +422,23 @@ class BrowserApp(App):
     def _reopen(self, url: str) -> None:
         """Re-open a URL from the nav stack without pushing a new entry."""
         if url.startswith("search:"):
-            self._omnibox.set_url(url.removeprefix("search:"))
-            self._search_worker(url.removeprefix("search:"))
-            self._sync_chrome()
+            self._search(url.removeprefix("search:"), record=False)
         else:
             self._load(url, record=False)
 
     def action_reload(self) -> None:
         tab = self.tabs.active
         if tab.url.startswith("search:"):
-            self._search_worker(tab.url.removeprefix("search:"))
+            self._search(tab.url.removeprefix("search:"), record=False)
         elif tab.url:
             self._load(tab.url, record=False)
+
+    def _open_in_browser(self, url: str) -> bool:
+        """Open ``url`` in the system browser. Returns ``True`` on success."""
+        try:
+            return webbrowser.open(url)
+        except Exception:
+            return False
 
     def action_open_external(self) -> None:
         """Open the current page (or search) in the system's real GUI browser."""
@@ -390,11 +450,7 @@ class BrowserApp(App):
         if url.startswith("search:"):
             query = url.removeprefix("search:")
             url = f"https://www.google.com/search?q={quote_plus(query)}"
-        try:
-            opened = webbrowser.open(url)
-        except Exception:
-            opened = False
-        if opened:
+        if self._open_in_browser(url):
             self._status.show_message(f"Opened in your browser · {url}")
         else:
             self.notify(
@@ -488,6 +544,11 @@ class BrowserApp(App):
         if isinstance(self.focused, Omnibox):
             return
         char = event.character or ""
+        # n / p page through search results.
+        if char in ("n", "p") and not self._link_buffer and self._is_search_view():
+            self._paginate(1 if char == "n" else -1)
+            event.stop()
+            return
         if char.isdigit():
             self._link_buffer += char
             self._status.show_link_buffer(self._link_buffer)

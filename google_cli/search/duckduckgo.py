@@ -1,4 +1,10 @@
-"""DuckDuckGo HTML search — works with no API key."""
+"""DuckDuckGo HTML search — works with no API key.
+
+Pagination follows DuckDuckGo's own "Next" form: the results page embeds a form
+with hidden fields (``s``, ``nextParams``, ``vqd``, …). We capture those and
+resubmit them to get the next page, which is the only reliable way to page the
+HTML endpoint.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from ..engine.fetch import USER_AGENT
-from ..models import SearchResult
+from ..models import SearchPage, SearchResult
 from .base import SearchEngine
 
 ENDPOINT = "https://html.duckduckgo.com/html/"
@@ -17,18 +23,23 @@ ENDPOINT = "https://html.duckduckgo.com/html/"
 class DuckDuckGoEngine(SearchEngine):
     name = "DuckDuckGo"
 
-    async def search(self, query: str, *, limit: int = 20) -> list[SearchResult]:
+    async def search(
+        self, query: str, *, limit: int = 20, cursor: object | None = None
+    ) -> SearchPage:
         headers = {"User-Agent": USER_AGENT}
+        data = cursor if isinstance(cursor, dict) else {"q": query}
         try:
             async with httpx.AsyncClient(
                 follow_redirects=True, timeout=15.0, headers=headers
             ) as client:
-                response = await client.post(ENDPOINT, data={"q": query})
+                response = await client.post(ENDPOINT, data=data)
                 response.raise_for_status()
                 html = response.text
         except httpx.HTTPError:
-            return []
-        return parse_results(html, limit=limit)
+            return SearchPage([], None)
+        results = parse_results(html, limit=limit)
+        next_cursor = parse_next_cursor(html, query)
+        return SearchPage(results, next_cursor)
 
 
 def parse_results(html: str, *, limit: int = 20) -> list[SearchResult]:
@@ -53,6 +64,29 @@ def parse_results(html: str, *, limit: int = 20) -> list[SearchResult]:
         if len(results) >= limit:
             break
     return results
+
+
+def parse_next_cursor(html: str, query: str) -> dict | None:
+    """Return the hidden fields of the "Next" form, or ``None`` if there's none.
+
+    Pure function for easy testing. The returned dict is POSTed as-is to fetch
+    the following page.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    for form in soup.select("form.nav-link, div.nav-link form, form"):
+        inputs = form.select("input[type=hidden]")
+        names = {i.get("name") for i in inputs}
+        # The next-page form is the one carrying pagination state.
+        if "s" not in names and "nextParams" not in names:
+            continue
+        fields = {
+            i.get("name"): i.get("value", "")
+            for i in inputs
+            if i.get("name")
+        }
+        fields.setdefault("q", query)
+        return fields
+    return None
 
 
 def _unwrap(href: str) -> str:

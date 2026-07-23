@@ -19,6 +19,9 @@ class Tab:
         self._pos = -1
         self.page: Page | None = None
         self.loading = False
+        # True once we've auto-opened this web-app tab in the real browser, so
+        # re-selecting it doesn't spawn a new browser window every time.
+        self.app_opened = False
 
     # -- navigation stack --------------------------------------------------
     @property

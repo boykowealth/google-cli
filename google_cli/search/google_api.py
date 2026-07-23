@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import httpx
 
-from ..models import SearchResult
+from ..models import SearchPage, SearchResult
 from .base import SearchEngine
 
 ENDPOINT = "https://www.googleapis.com/customsearch/v1"
+_MAX_START = 91  # Custom Search API caps start at 91 (results 1-100).
 
 
 class GoogleApiEngine(SearchEngine):
@@ -17,12 +18,17 @@ class GoogleApiEngine(SearchEngine):
         self.api_key = api_key
         self.cx = cx
 
-    async def search(self, query: str, *, limit: int = 20) -> list[SearchResult]:
+    async def search(
+        self, query: str, *, limit: int = 20, cursor: object | None = None
+    ) -> SearchPage:
+        num = min(limit, 10)  # API max per request.
+        start = cursor if isinstance(cursor, int) else 1
         params = {
             "key": self.api_key,
             "cx": self.cx,
             "q": query,
-            "num": min(limit, 10),  # API max per request.
+            "num": num,
+            "start": start,
         }
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
@@ -30,8 +36,11 @@ class GoogleApiEngine(SearchEngine):
                 response.raise_for_status()
                 data = response.json()
         except (httpx.HTTPError, ValueError):
-            return []
-        return parse_results(data, limit=limit)
+            return SearchPage([], None)
+        results = parse_results(data, limit=limit)
+        next_start = start + num
+        next_cursor = next_start if results and next_start <= _MAX_START else None
+        return SearchPage(results, next_cursor)
 
 
 def parse_results(data: dict, *, limit: int = 20) -> list[SearchResult]:
