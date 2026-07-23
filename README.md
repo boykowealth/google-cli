@@ -51,8 +51,8 @@ readable pages, all without leaving the command line.
 - **Default tabs** — start with **Gmail** and **Calendar** tabs open (configurable).
 - **Keyboard-first** — everything is a shortcut; `Tab` also moves focus through the tabs and
   controls. Mouse clicks work too, but you never need them.
-- **Pluggable search** — DuckDuckGo out of the box (no API key), or plug in the Google
-  Programmable Search API.
+- **Resilient search** — no API key needed; tries DuckDuckGo and falls back to Bing if one
+  is rate-limiting, so results keep coming. Optionally plug in the Google Programmable Search API.
 - **Light & dark mode** — an off-black / off-white palette with one blue accent; toggle with
   `F6` and your choice is remembered.
 - **Unbreakable** — timeouts, dead links and bad addresses show a friendly message, never a crash,
@@ -129,8 +129,8 @@ default_tabs = [
 ]
 
 [search]
-# "duckduckgo" (default, no key) or "google"
-engine = "duckduckgo"
+# "web" (default: DuckDuckGo, falling back to Bing), "duckduckgo", "bing", or "google"
+engine = "web"
 
 # Only needed for engine = "google" (Google Programmable Search API)
 api_key = "YOUR_API_KEY"

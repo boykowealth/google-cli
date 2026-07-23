@@ -89,7 +89,14 @@ class PageView(VerticalScroll):
             header += f"  [dim]· page {page + 1}[/dim]"
         lines = [header, ""]
         if not results:
-            lines.append("[dim]No results found (or the search service was unreachable).[/dim]")
+            lines.append(
+                "[dim]No results — the search engines may be blocking automated "
+                "requests right now.[/dim]"
+            )
+            lines.append("")
+            lines.append(
+                "[#4285F4]Press [b]Ctrl+O[/b] to run this search in your real browser ↗[/]"
+            )
         for i, r in enumerate(results, start=1):
             lines.append(
                 f"[@click=app.follow_link({i})]"

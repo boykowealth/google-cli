@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from ..engine.fetch import USER_AGENT
+from ..engine.fetch import DEFAULT_HEADERS
 from ..models import SearchPage, SearchResult
 from .base import SearchEngine
 
@@ -26,7 +26,16 @@ class DuckDuckGoEngine(SearchEngine):
     async def search(
         self, query: str, *, limit: int = 20, cursor: object | None = None
     ) -> SearchPage:
-        headers = {"User-Agent": USER_AGENT}
+        # Full browser headers + Referer/Origin reduce DuckDuckGo's bot challenges.
+        headers = dict(DEFAULT_HEADERS)
+        headers.update(
+            {
+                "Referer": "https://duckduckgo.com/",
+                "Origin": "https://duckduckgo.com",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Sec-Fetch-Site": "same-origin",
+            }
+        )
         data = cursor if isinstance(cursor, dict) else {"q": query}
         try:
             async with httpx.AsyncClient(

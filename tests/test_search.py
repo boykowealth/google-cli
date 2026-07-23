@@ -1,6 +1,10 @@
+from google_cli.models import SearchPage, SearchResult
+from google_cli.search.base import SearchEngine
+from google_cli.search.bing import parse_results as bing_parse
 from google_cli.search.duckduckgo import parse_next_cursor
 from google_cli.search.duckduckgo import parse_results as ddg_parse
 from google_cli.search.google_api import parse_results as google_parse
+from google_cli.search.multi import MultiEngine
 
 DDG_HTML = """
 <div class="result">
@@ -75,3 +79,49 @@ def test_ddg_next_cursor_captures_form_fields():
 def test_ddg_next_cursor_none_when_no_next_form():
     html = '<div class="result"><a class="result__a" href="https://x.test">X</a></div>'
     assert parse_next_cursor(html, "cats") is None
+
+
+BING_HTML = """
+<ol id="b_results">
+  <li class="b_algo">
+    <h2><a href="https://a.test/page">Title A</a></h2>
+    <div class="b_caption"><p>Snippet A</p></div>
+  </li>
+  <li class="b_algo"><h2><a href="https://b.test">Title B</a></h2></li>
+  <li class="b_algo"><h2><a href="/relative-ignored">No scheme</a></h2></li>
+</ol>
+"""
+
+
+def test_bing_parses_results_and_skips_relative():
+    results = bing_parse(BING_HTML)
+    assert [r.url for r in results] == ["https://a.test/page", "https://b.test"]
+    assert results[0].title == "Title A"
+    assert results[0].snippet == "Snippet A"
+
+
+class _Empty(SearchEngine):
+    async def search(self, query, *, limit=20, cursor=None):
+        return SearchPage([], None)
+
+
+class _Full(SearchEngine):
+    async def search(self, query, *, limit=20, cursor=None):
+        return SearchPage([SearchResult("t", "https://u.test")], next_cursor=5)
+
+
+async def test_multi_engine_falls_through_to_a_working_provider():
+    engine = MultiEngine([_Empty(), _Full()])
+    sp = await engine.search("q")
+    assert len(sp.results) == 1
+    # Cursor remembers which provider (index 1) answered, plus its sub-cursor.
+    assert sp.next_cursor == (1, 5)
+    # Paging reuses that provider directly.
+    sp2 = await engine.search("q", cursor=sp.next_cursor)
+    assert len(sp2.results) == 1
+
+
+async def test_multi_engine_empty_when_all_block():
+    engine = MultiEngine([_Empty(), _Empty()])
+    sp = await engine.search("q")
+    assert sp.results == [] and sp.next_cursor is None

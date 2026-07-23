@@ -32,7 +32,7 @@ class Config:
     config file, which is handy for the Google Programmable Search API.
     """
 
-    search_engine: str = "duckduckgo"
+    search_engine: str = "web"  # "web" (DuckDuckGo→Bing fallback), "duckduckgo", "bing", "google"
     api_key: str = ""
     cx: str = ""
     homepage: str = ""
