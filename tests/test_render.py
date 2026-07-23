@@ -36,6 +36,24 @@ def test_image_alt_placeholder_present():
     assert "image: A cat" in body
 
 
+def test_lone_bracket_does_not_break_markup():
+    # Web text with a stray "[" (e.g. Wikipedia's "[dubious") must not break
+    # Textual's markup parser and take down the whole page.
+    from textual.content import Content
+
+    html = "<p>This claim [dubious – see talk and more text here.</p><p>[unclosed too</p>"
+    page = render(html, base_url="https://s.test/", title="T", url="https://s.test/")
+    Content.from_markup("\n".join(page.lines))  # must not raise
+
+
+def test_table_with_bracket_cell_is_valid_markup():
+    from textual.content import Content
+
+    html = "<table><tr><th>A</th><th>B</th></tr><tr><td>[dubious</td><td>ok]</td></tr></table>"
+    page = render(html, base_url="https://s.test/", title="T", url="https://s.test/")
+    Content.from_markup("\n".join(page.lines))  # must not raise
+
+
 def test_table_renders_as_box():
     html = """
     <table>

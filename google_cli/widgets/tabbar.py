@@ -26,7 +26,9 @@ class TabLabel(Static):
     can_focus = True
 
     def __init__(self, index: int, title: str, active: bool) -> None:
-        super().__init__(_truncate(title))
+        # markup=False: a web page title may contain '[' which would otherwise
+        # be mis-parsed as markup. Colour still comes from CSS.
+        super().__init__(_truncate(title), markup=False)
         self._index = index
         if active:
             self.add_class("active")

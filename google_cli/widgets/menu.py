@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from rich.markup import escape
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Label, ListItem, ListView, Static
 
+from ..markup import escape
 from ..models import Bookmark, HistoryEntry
 
 MENU_ITEMS: list[tuple[str, str]] = [

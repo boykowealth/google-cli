@@ -12,8 +12,8 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
-from rich.markup import escape
 
+from ..markup import escape
 from ..models import Link, Page
 
 # Chrome blue reads on both light and dark terminals. Headings use the theme's

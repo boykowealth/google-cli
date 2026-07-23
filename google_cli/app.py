@@ -246,42 +246,49 @@ class BrowserApp(App):
     @work(exclusive=True, group="load")
     async def _fetch_worker(self, url: str) -> None:
         self._page_view.loading = True
-        result = await fetch(url)
-        tab = self.tabs.active
-        if result.url != url:  # followed a redirect
-            self._omnibox.set_url(result.url)
+        try:
+            result = await fetch(url)
+            tab = self.tabs.active
+            if result.url != url:  # followed a redirect
+                self._omnibox.set_url(result.url)
 
-        if not result.ok:
-            page = Page(url=result.url, title="Problem loading page", is_error=True)
-            tab.page = page
-            self._page_view.show_error(result.error or "Unknown error.")
-            self._status.show_hint()
-            await self._after_load(record_history=False)
-            return
+            if not result.ok:
+                tab.page = Page(url=result.url, title="Problem loading page", is_error=True)
+                self._page_view.show_error(result.error or "Unknown error.")
+                self._status.show_hint()
+                await self._after_load(record_history=False)
+                return
 
-        if not result.is_html:
-            page = Page(url=result.url, title=result.url)
-            page.lines = [
-                "[dim]This content isn't a web page "
-                f"({result.content_type or 'unknown type'}) and can't be rendered as text.[/dim]"
-            ]
+            if not result.is_html:
+                page = Page(url=result.url, title=result.url)
+                page.lines = [
+                    "[dim]This content isn't a web page "
+                    f"({result.content_type or 'unknown type'}) "
+                    "and can't be rendered as text.[/dim]"
+                ]
+                tab.page = page
+                self._page_view.show_page(page)
+                self._status.show_hint()
+                await self._after_load()
+                return
+
+            article = readability.extract(result.html, result.url)
+            page = render.render(
+                article.content_html,
+                base_url=result.url,
+                title=article.title,
+                url=result.url,
+            )
             tab.page = page
             self._page_view.show_page(page)
-            self._status.show_hint()
+            self._status.show_message(f"Loaded · {len(page.links)} links")
             await self._after_load()
-            return
-
-        article = readability.extract(result.html, result.url)
-        page = render.render(
-            article.content_html,
-            base_url=result.url,
-            title=article.title,
-            url=result.url,
-        )
-        tab.page = page
-        self._page_view.show_page(page)
-        self._status.show_message(f"Loaded · {len(page.links)} links")
-        await self._after_load()
+        except Exception as exc:
+            # Never leave the spinner stuck — surface any unexpected failure.
+            self.tabs.active.page = Page(url=url, title="Problem loading page", is_error=True)
+            self._page_view.show_error(f"Couldn't display this page. ({type(exc).__name__})")
+            self._status.show_hint()
+            await self._after_load(record_history=False)
 
     def _search(self, query: str, *, record: bool = True) -> None:
         tab = self.tabs.active
@@ -301,28 +308,32 @@ class BrowserApp(App):
     @work(exclusive=True, group="load")
     async def _search_worker(self, query: str, page: int, cursor: object | None) -> None:
         self._page_view.loading = True
-        sp = await self.engine.search(query, limit=20, cursor=cursor)
-        tab = self.tabs.active
-        if not sp.results and page > 0:
-            # Ran past the last page — keep the current one on screen.
+        try:
+            sp = await self.engine.search(query, limit=20, cursor=cursor)
+            tab = self.tabs.active
+            if not sp.results and page > 0:
+                # Ran past the last page — keep the current one on screen.
+                self._page_view.loading = False
+                self._status.show_message("No more results")
+                return
+            self._search_page = page
+            self._next_cursor[page] = sp.next_cursor
+            page_obj = Page(url=f"search:{query}", title=f"{query} — {self.engine.name}")
+            page_obj.links = [
+                Link(index=i, text=r.title, url=r.url) for i, r in enumerate(sp.results, 1)
+            ]
+            tab.page = page_obj
+            self._page_view.show_search(
+                query, sp.results, page=page, has_next=sp.next_cursor is not None
+            )
+            self._status.show_message(
+                f"{len(sp.results)} results · page {page + 1} · {self.engine.name}"
+            )
+            await self._after_load(record_history=False)
+        except Exception as exc:
+            self._page_view.show_error(f"Search failed. ({type(exc).__name__})")
+            self._status.show_hint()
             self._page_view.loading = False
-            self._status.show_message("No more results")
-            return
-        self._search_page = page
-        self._next_cursor[page] = sp.next_cursor
-        page_obj = Page(url=f"search:{query}", title=f"{query} — {self.engine.name}")
-        page_obj.links = [
-            Link(index=i, text=r.title, url=r.url) for i, r in enumerate(sp.results, 1)
-        ]
-        tab.page = page_obj
-        self._page_view.show_search(
-            query, sp.results, page=page, has_next=sp.next_cursor is not None
-        )
-        pages_hint = f"page {page + 1}"
-        self._status.show_message(
-            f"{len(sp.results)} results · {pages_hint} · {self.engine.name}"
-        )
-        await self._after_load(record_history=False)
 
     def _is_search_view(self) -> bool:
         page = self.tabs.active.page

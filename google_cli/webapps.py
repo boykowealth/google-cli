@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
+from .markup import escape
+
 KNOWN_APPS: dict[str, str] = {
     "mail.google.com": "Gmail",
     "calendar.google.com": "Calendar",
@@ -44,5 +46,5 @@ def card_lines(name: str, url: str) -> list[str]:
         "",
         "[#4285F4]Opening it in your browser…  press [b]Ctrl+O[/b] to open it again ↗[/]",
         "",
-        f"[dim]{url}[/dim]",
+        f"[dim]{escape(url)}[/dim]",
     ]

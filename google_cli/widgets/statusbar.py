@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from rich.markup import escape
 from textual.widgets import Static
+
+from ..markup import escape
 
 DEFAULT_HINT = "Ctrl+L address · Ctrl+T new tab · F6 theme · ? all shortcuts"
 

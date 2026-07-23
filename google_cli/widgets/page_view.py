@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from rich.markup import escape
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from ..markup import escape
 from ..models import Page, SearchResult
 
 _B = "#4285F4"  # Chrome blue, used for the shortcut keys.

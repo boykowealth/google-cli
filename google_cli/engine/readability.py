@@ -1,9 +1,8 @@
 """Extract the main readable content from a raw HTML document.
 
-By default we use ``readability-lxml`` for a clean reading view. But readability
-strips ``<table>`` elements, so when a page has real data tables that got
-dropped, we fall back to the page's semantic main-content node (``<main>`` /
-``<article>`` / common content ids) which preserves tables, links and structure.
+We use ``readability-lxml`` for a clean reading view (this is the behaviour that
+worked well). readability strips ``<table>`` elements, so — and only so — we
+re-attach the page's real data tables to the cleaned content afterwards.
 """
 
 from __future__ import annotations
@@ -12,25 +11,10 @@ from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
-# Ordered by specificity: the first that holds real content wins.
-_MAIN_SELECTORS = [
-    "main",
-    "article",
-    "[role=main]",
-    "#mw-content-text",  # Wikipedia / MediaWiki
-    "#content",
-    "#main",
-    ".article-body",
-    ".post-content",
-    ".entry-content",
-]
+# Junk to remove from any table we re-attach.
+_TABLE_JUNK = "script, style, noscript, .mw-editsection, .reference, sup.reference"
 
-# Junk to drop from a semantic main node before rendering.
-_JUNK_SELECTORS = (
-    "script, style, noscript, nav, footer, header, aside, form, "
-    ".navbox, .reflist, .mw-editsection, .mw-jump-link, .toc, "
-    ".sidebar, .infobox-below, .noprint"
-)
+_MAX_TABLES = 8  # don't bloat a page with dozens of tables
 
 
 @dataclass(slots=True)
@@ -44,8 +28,8 @@ class Article:
 def extract(html: str, url: str) -> Article:
     """Return the primary article content of ``html``.
 
-    Prefers readability's clean summary, but keeps tables: if the summary has no
-    table while the page clearly does, use the semantic main node instead.
+    Clean readability output, with real data tables re-attached (readability
+    drops them). Any failure falls back to the raw HTML so nothing is unrenderable.
     """
     title = ""
     summary = ""
@@ -59,51 +43,37 @@ def extract(html: str, url: str) -> Article:
         summary = ""
 
     content_html = summary or html
-    if _dropped_a_table(summary, html):
-        main = _main_content(html)
-        if main:
-            content_html = main
+    # Only re-attach tables when the cleaned content lost them.
+    if "<table" not in content_html.lower():
+        tables = _data_tables(html)
+        if tables:
+            content_html = content_html + "\n" + "\n".join(tables)
 
     if not title:
         title = _fallback_title(html) or url
     return Article(title=title, content_html=content_html)
 
 
-def _dropped_a_table(summary: str, html: str) -> bool:
-    """True if the page has a real data table that the summary doesn't."""
-    if "<table" in summary.lower():
-        return False
-    return _has_data_table(html)
-
-
-def _has_data_table(html: str) -> bool:
+def _data_tables(html: str) -> list[str]:
+    """Return cleaned HTML for the page's real data tables (not layout tables)."""
     try:
         soup = BeautifulSoup(html, "lxml")
     except Exception:
-        return False
+        return []
+    tables: list[str] = []
     for table in soup.find_all("table"):
         rows = table.find_all("tr")
         cells = table.find_all(["td", "th"])
-        if len(rows) >= 2 and len(cells) >= 4:
-            return True
-    return False
-
-
-def _main_content(html: str) -> str | None:
-    try:
-        soup = BeautifulSoup(html, "lxml")
-    except Exception:
-        return None
-    for selector in _MAIN_SELECTORS:
-        node = soup.select_one(selector)
-        if node is None:
+        # Heuristics: a data table has several rows and cells; layout tables
+        # tend to have very few rows or a single wide cell.
+        if len(rows) < 2 or len(cells) < 4:
             continue
-        if len(node.get_text(strip=True)) < 200:
-            continue
-        for junk in node.select(_JUNK_SELECTORS):
+        for junk in table.select(_TABLE_JUNK):
             junk.decompose()
-        return str(node)
-    return None
+        tables.append(str(table))
+        if len(tables) >= _MAX_TABLES:
+            break
+    return tables
 
 
 def _fallback_title(html: str) -> str:
