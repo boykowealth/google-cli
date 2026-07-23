@@ -17,9 +17,9 @@ readable pages, all without leaving the command line.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ ◑ google   Welcome  ·  Python.org ×   +                                │
+│ ◑ google  │ Welcome │ Python.org │   + New tab                         │
 ├──────────────────────────────────────────────────────────────────────┤
-│  ←  →  ↻   [ https://www.python.org                       ]   ↗  ☆  ⋮  │
+│  ←  →  ↻   [ https://www.python.org                              ]  ⋮  │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                        │
 │  # Welcome to Python                                                   │
@@ -34,7 +34,7 @@ readable pages, all without leaving the command line.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-## ✨ Features
+## Features
 
 - **Omnibox** — type a URL to visit, or plain text to search (just like Chrome).
 - **Tabs** — open, close and switch between multiple pages.
@@ -42,14 +42,20 @@ readable pages, all without leaving the command line.
 - **Bookmarks** — star pages and reopen them anytime; saved to disk.
 - **Readable rendering** — pages are distilled to their main content, with **numbered links**
   you follow by typing a number or clicking.
-- **Hand off to your real browser** — press `Ctrl+O` (or the ↗ button) to open the current
-  page in your system's GUI browser at any time.
+- **Hand off to your real browser** — press `Ctrl+O` to open the current page in your system's
+  GUI browser at any time. Web apps that need JavaScript + sign-in (**Gmail**, **Google
+  Calendar**, Docs, Drive…) show a one-key hand-off card instead of failing to render.
+- **Default tabs** — start with Gmail and Calendar open (configurable), ready to hand off.
+- **Keyboard-first** — everything is a shortcut; `Tab` also moves focus through the tabs and
+  controls. Mouse clicks work too, but you never need them.
 - **Pluggable search** — DuckDuckGo out of the box (no API key), or plug in the Google
   Programmable Search API.
-- **Clean, subtle branding** — Chrome's four colours used sparingly; light- and dark-terminal aware.
-- **Unbreakable** — timeouts, dead links and bad addresses show a friendly message, never a crash.
+- **Light & dark mode** — an off-black / off-white palette with one blue accent; toggle with
+  `F6` and your choice is remembered.
+- **Unbreakable** — timeouts, dead links and bad addresses show a friendly message, never a crash,
+  and a loading overlay tells you when a page is fetching.
 
-## 🚀 Quick Start
+## Quick Start
 
 The recommended way puts a `google` command on your `PATH` in an isolated environment:
 
@@ -82,7 +88,7 @@ pip install --user git+https://github.com/boykowealth/google-cli.git
 ```
 </details>
 
-## ⌨️ Usage
+## Usage
 
 Everything is keyboard-first (and mouse-clickable where it helps).
 
@@ -98,17 +104,25 @@ Everything is keyboard-first (and mouse-clickable where it helps).
 | `Ctrl+O` | **Open the current page in your real GUI browser** ↗ |
 | `Ctrl+D` | Bookmark this page |
 | `Ctrl+H` / `Ctrl+B` | History / bookmarks |
+| `F6` | Toggle light / dark mode |
 | `F2` | Open the ⋮ menu |
 | `?` | Keyboard shortcuts |
 | `Ctrl+Q` | Quit |
 
-## ⚙️ Configuration
+## Configuration
 
 Settings live in a TOML file at `~/.config/google-cli/config.toml` (all fields optional):
 
 ```toml
 [general]
-homepage = "https://news.ycombinator.com"
+homepage = "https://news.ycombinator.com"   # optional: open one page instead of default tabs
+theme = "dark"                               # "dark" or "light" (F6 toggles, and is remembered)
+
+# Tabs opened at startup (loaded lazily when you first view them).
+default_tabs = [
+    "https://mail.google.com/",
+    "https://calendar.google.com/",
+]
 
 [search]
 # "duckduckgo" (default, no key) or "google"
@@ -129,7 +143,7 @@ export GOOGLE_CLI_CX="…"
 
 History and bookmarks are stored as JSON under `~/.local/share/google-cli/`.
 
-## 🧠 How it works
+## How it works
 
 `google` is intentionally lightweight — there's no embedded browser engine:
 
@@ -137,11 +151,15 @@ History and bookmarks are stored as JSON under `~/.local/share/google-cli/`.
 2. **Extract** the main article content (`readability-lxml`), stripping nav, ads and clutter.
 3. **Render** the result into styled terminal lines with ordered, followable links.
 
-This makes it fast, dependency-light and installable with a single `pip`/`pipx`
-command anywhere. The trade-off: JavaScript-heavy apps that build their content
-client-side won't render fully.
+It sends a full set of real-Chrome request headers, so most sites that block bare
+scripts load fine. This keeps `google` fast, dependency-light and installable with a
+single `pip`/`pipx` command anywhere.
 
-## 🛠️ Development
+The trade-off: JavaScript-heavy apps that build their content client-side (Gmail,
+Google Calendar, Docs, most SPAs) can't render as text. For those, `google` shows a
+clean hand-off card — press `Ctrl+O` to open them in your real browser.
+
+## Development
 
 ```bash
 git clone https://github.com/boykowealth/google-cli.git
@@ -154,7 +172,7 @@ ruff check .      # lint
 python -m google_cli   # run from source
 ```
 
-## 🗺️ Roadmap
+## Roadmap
 
 - Optional headless-Chrome rendering for JavaScript-heavy sites
 - Inline images via terminal graphics (Kitty / iTerm / sixel)

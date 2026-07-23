@@ -1,4 +1,4 @@
-"""The navigation toolbar: back/forward/reload, omnibox and bookmark/menu."""
+"""The navigation toolbar: back/forward/reload, the omnibox and the ⋮ menu."""
 
 from __future__ import annotations
 
@@ -10,38 +10,31 @@ from .omnibox import Omnibox
 
 
 class Toolbar(Horizontal):
-    """Row of navigation controls wrapping the omnibox."""
+    """Row of navigation controls wrapping the omnibox.
+
+    Bookmarking and open-in-browser live on keyboard shortcuts (Ctrl+D / Ctrl+O)
+    and in the menu, so they intentionally have no toolbar buttons.
+    """
 
     #: id -> (glyph, tooltip). Tooltips make each control self-explanatory on hover.
-    _BUTTONS = [
+    _LEFT = [
         ("nav-back", "←", "Back  (Alt+←)"),
         ("nav-forward", "→", "Forward  (Alt+→)"),
         ("nav-reload", "↻", "Reload  (Ctrl+R)"),
     ]
-    _BUTTONS_RIGHT = [
-        ("nav-external", "↗", "Open in browser  (Ctrl+O)"),
-        ("nav-bookmark", "☆", "Bookmark  (Ctrl+D)"),
-        ("nav-menu", "⋮", "Menu  (F2)"),
-    ]
 
     def compose(self) -> ComposeResult:
-        for btn_id, glyph, tip in self._BUTTONS:
+        for btn_id, glyph, tip in self._LEFT:
             btn = Button(glyph, id=btn_id, classes="icon")
             btn.tooltip = tip
             yield btn
         yield Omnibox()
-        for btn_id, glyph, tip in self._BUTTONS_RIGHT:
-            btn = Button(glyph, id=btn_id, classes="icon")
-            btn.tooltip = tip
-            yield btn
+        menu = Button("⋮", id="nav-menu", classes="icon")
+        menu.tooltip = "Menu  (F2)"
+        yield menu
 
     def set_back_enabled(self, enabled: bool) -> None:
         self.query_one("#nav-back", Button).disabled = not enabled
 
     def set_forward_enabled(self, enabled: bool) -> None:
         self.query_one("#nav-forward", Button).disabled = not enabled
-
-    def set_bookmarked(self, bookmarked: bool) -> None:
-        btn = self.query_one("#nav-bookmark", Button)
-        btn.label = "★" if bookmarked else "☆"
-        btn.set_class(bookmarked, "starred")

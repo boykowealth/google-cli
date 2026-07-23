@@ -6,10 +6,33 @@ from dataclasses import dataclass
 
 import httpx
 
+# A current, unmodified Chrome UA. The previous version appended "google-cli",
+# which many sites flagged as a bot and blocked (403). A realistic UA plus the
+# full set of headers a real Chrome sends gets us past most gates.
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0 Safari/537.36 google-cli"
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
+
+# Only advertise encodings httpx can always decode (gzip/deflate); "br" would
+# need the optional brotli package and could yield garbled bytes without it.
+DEFAULT_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,image/apng,*/*;q=0.8"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
+    "Sec-Ch-Ua": '"Chromium";v="131", "Not_A Brand";v="24", "Google Chrome";v="131"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Linux"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
 
 DEFAULT_TIMEOUT = 15.0
 
@@ -39,10 +62,9 @@ async def fetch(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> FetchResult:
     Network, DNS, timeout and HTTP-status problems are captured as human-readable
     ``error`` strings rather than raised, so callers never crash the UI.
     """
-    headers = {"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"}
     try:
         async with httpx.AsyncClient(
-            follow_redirects=True, timeout=timeout, headers=headers
+            follow_redirects=True, timeout=timeout, headers=DEFAULT_HEADERS
         ) as client:
             response = await client.get(url)
     except httpx.TimeoutException:

@@ -18,6 +18,7 @@ MENU_ITEMS: list[tuple[str, str]] = [
     ("history", "History"),
     ("reload", "Reload"),
     ("open_external", "Open in browser  ↗"),
+    ("toggle_theme", "Toggle light / dark"),
     ("help", "Keyboard shortcuts"),
     ("about", "About google-cli"),
     ("quit", "Quit"),
@@ -25,14 +26,16 @@ MENU_ITEMS: list[tuple[str, str]] = [
 
 
 class MainMenu(ModalScreen[str]):
-    """The ⋮ dropdown. Dismisses with the chosen action key, or ``None``."""
+    """The full-screen, centered menu. Dismisses with the chosen action key."""
 
-    BINDINGS = [("escape", "dismiss", "Close")]
+    BINDINGS = [("escape", "dismiss", "Close"), ("f2", "dismiss", "Close")]
 
     def compose(self) -> ComposeResult:
         with Vertical(id="menu-panel"):
+            yield Static("Menu", id="menu-title")
             items = [ListItem(Label(label), id=f"m-{key}") for key, label in MENU_ITEMS]
             yield ListView(*items, id="menu-list")
+            yield Static("[dim]Esc to close[/dim]", id="menu-hint")
 
     @on(ListView.Selected)
     def _selected(self, event: ListView.Selected) -> None:
@@ -96,6 +99,7 @@ HELP_TEXT = """[bold]Keyboard shortcuts[/bold]
   [#4285F4]Ctrl+D[/]      Bookmark this page
   [#4285F4]Ctrl+H[/]      History
   [#4285F4]Ctrl+B[/]      Bookmarks
+  [#4285F4]F6[/]          Toggle light / dark mode
   [#4285F4]F2[/]          Menu
   [#4285F4]digits, Enter[/] Follow link by number  ([#4285F4]Esc[/] cancels)
   [#4285F4]?[/]           This help

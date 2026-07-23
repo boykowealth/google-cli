@@ -5,6 +5,7 @@ from __future__ import annotations
 from itertools import count
 
 from ..models import Page
+from ..webapps import detect as detect_app
 
 _ids = count(1)
 
@@ -28,7 +29,9 @@ class Tab:
     def title(self) -> str:
         if self.page and self.page.title:
             return self.page.title
-        return self.url or "New Tab"
+        if self.url:
+            return detect_app(self.url) or self.url
+        return "New Tab"
 
     def visit(self, url: str) -> None:
         """Record a new navigation, truncating any forward history."""

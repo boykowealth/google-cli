@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.markup import escape
 from textual.widgets import Static
 
-DEFAULT_HINT = "Ctrl+L address · Ctrl+O open in browser ↗ · ? shortcuts"
+DEFAULT_HINT = "Ctrl+L address · Ctrl+T new tab · F6 theme · ? all shortcuts"
 
 
 class StatusBar(Static):

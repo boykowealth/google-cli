@@ -8,8 +8,10 @@ from urllib.parse import quote_plus
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
+from textual.theme import Theme
 from textual.widgets import Button, Static
 
+from . import webapps
 from .engine import readability, render
 from .engine.fetch import fetch
 from .models import Link, Page
@@ -17,6 +19,7 @@ from .search import get_engine
 from .state.bookmarks import Bookmarks
 from .state.config import Config
 from .state.history import History
+from .state.store import load_json, save_json
 from .state.tabs import TabManager
 from .urls import looks_like_url, normalize_url
 from .widgets.menu import (
@@ -31,6 +34,40 @@ from .widgets.page_view import PageView
 from .widgets.statusbar import StatusBar
 from .widgets.tabbar import TabBar
 from .widgets.toolbar import Toolbar
+
+DARK_THEME = "google-dark"
+LIGHT_THEME = "google-light"
+_PREFS_FILE = "prefs.json"
+
+# Timeless off-black / off-white palette. A single blue accent; the four brand
+# colours appear only in the small wordmark. Neutral greys do the rest, so the
+# UI reads as calm and current rather than trend-driven.
+_GOOGLE_DARK = Theme(
+    name=DARK_THEME,
+    dark=True,
+    primary="#4285F4",
+    accent="#4285F4",
+    foreground="#E6E6E6",
+    background="#121212",
+    surface="#161616",
+    panel="#202020",
+    success="#34A853",
+    warning="#FBBC05",
+    error="#EA4335",
+)
+_GOOGLE_LIGHT = Theme(
+    name=LIGHT_THEME,
+    dark=False,
+    primary="#1A73E8",
+    accent="#1A73E8",
+    foreground="#1F1F1F",
+    background="#FAFAFA",
+    surface="#FFFFFF",
+    panel="#EFEFEF",
+    success="#188038",
+    warning="#B06000",
+    error="#C5221F",
+)
 
 
 class Logo(Static):
@@ -60,6 +97,7 @@ class BrowserApp(App):
         ("ctrl+h", "history", "History"),
         ("ctrl+b", "bookmarks", "Bookmarks"),
         ("f2", "menu", "Menu"),
+        ("f6", "toggle_theme", "Light/Dark"),
         ("question_mark", "help", "Help"),
         ("ctrl+q", "quit", "Quit"),
     ]
@@ -85,7 +123,10 @@ class BrowserApp(App):
         yield PageView(id="page")
         yield StatusBar(id="status")
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
+        self.register_theme(_GOOGLE_DARK)
+        self.register_theme(_GOOGLE_LIGHT)
+        self._apply_saved_theme()
         self._page_view.show_welcome()
         self._sync_chrome()
         if self._initial:
@@ -96,7 +137,23 @@ class BrowserApp(App):
         elif self.config.homepage:
             self._load(normalize_url(self.config.homepage))
         else:
-            self.set_focus(self._omnibox)
+            await self._seed_default_tabs()
+
+    async def _seed_default_tabs(self) -> None:
+        """Open the configured default tabs (e.g. Gmail, Calendar) on startup.
+
+        Tabs are created but their content is loaded lazily when first viewed,
+        so startup stays instant and no network hit happens until you switch.
+        """
+        for url in self.config.default_tabs:
+            url = url.strip()
+            if not url:
+                continue
+            tab = self.tabs.new_tab()
+            tab.visit(normalize_url(url))
+        self.tabs.select(0)
+        await self._activate_tab()
+        self.set_focus(self._omnibox)
 
     # -- convenient handles ------------------------------------------------
     @property
@@ -143,8 +200,6 @@ class BrowserApp(App):
             "nav-back": self.action_back,
             "nav-forward": self.action_forward,
             "nav-reload": self.action_reload,
-            "nav-external": self.action_open_external,
-            "nav-bookmark": self.action_bookmark,
             "nav-menu": self.action_menu,
         }
         action = actions.get(event.button.id or "")
@@ -157,6 +212,18 @@ class BrowserApp(App):
         if record:
             tab.visit(url)
         self._omnibox.set_url(url)
+        # Known JS web apps (Gmail, Calendar, …) can't render as text — show a
+        # hand-off card instead of fetching, so they're instant and never "blocked".
+        app_name = webapps.detect(url)
+        if app_name:
+            page = Page(url=url, title=app_name, lines=webapps.card_lines(app_name, url))
+            tab.page = page
+            self._page_view.loading = False
+            self._page_view.show_page(page)
+            self._status.show_message(f"{app_name} · press Ctrl+O to open in your browser")
+            self._sync_chrome()
+            self.call_later(self._tabbar.refresh_tabs)
+            return
         self._page_view.show_loading(url)
         self._status.show_loading(url)
         self._sync_chrome()
@@ -164,6 +231,7 @@ class BrowserApp(App):
 
     @work(exclusive=True, group="load")
     async def _fetch_worker(self, url: str) -> None:
+        self._page_view.loading = True
         result = await fetch(url)
         tab = self.tabs.active
         if result.url != url:  # followed a redirect
@@ -213,6 +281,7 @@ class BrowserApp(App):
 
     @work(exclusive=True, group="load")
     async def _search_worker(self, query: str) -> None:
+        self._page_view.loading = True
         results = await self.engine.search(query)
         tab = self.tabs.active
         page = Page(url=f"search:{query}", title=f"{query} — {self.engine.name}")
@@ -224,16 +293,25 @@ class BrowserApp(App):
 
     async def _after_load(self, *, record_history: bool = True) -> None:
         tab = self.tabs.active
+        self._page_view.loading = False
         if record_history and tab.page and not tab.page.is_error and tab.url:
             self.history.add(tab.url, tab.page.title)
         self._sync_chrome()
         await self._tabbar.refresh_tabs()
+        # Land the user in the scrollable page so they can read/scroll at once.
+        self._page_view.focus()
 
     async def _activate_tab(self) -> None:
         """Redraw the page area for the newly-active tab."""
         tab = self.tabs.active
         page = tab.page
         if page is None:
+            if tab.url:
+                # Unloaded tab (e.g. a default tab): load it now, lazily.
+                # _load handles the tab-strip refresh, so return to avoid a
+                # second, overlapping refresh.
+                self._load(tab.url, record=False)
+                return
             self._page_view.show_welcome()
             self._omnibox.set_url("")
         elif page.is_error:
@@ -253,7 +331,6 @@ class BrowserApp(App):
         tab = self.tabs.active
         self._toolbar.set_back_enabled(tab.can_go_back())
         self._toolbar.set_forward_enabled(tab.can_go_forward())
-        self._toolbar.set_bookmarked(bool(tab.url) and self.bookmarks.has(tab.url))
 
     # -- actions -----------------------------------------------------------
     def action_focus_omnibox(self) -> None:
@@ -334,7 +411,6 @@ class BrowserApp(App):
             return
         title = tab.page.title if tab.page else tab.url
         now_saved = self.bookmarks.toggle(tab.url, title)
-        self._toolbar.set_bookmarked(now_saved)
         self._status.show_message("Bookmarked ★" if now_saved else "Bookmark removed")
 
     def action_history(self) -> None:
@@ -364,6 +440,7 @@ class BrowserApp(App):
         "history",
         "reload",
         "open_external",
+        "toggle_theme",
         "help",
         "about",
         "quit",
@@ -372,6 +449,19 @@ class BrowserApp(App):
     def _handle_menu(self, key: str | None) -> None:
         if key in self._MENU_ACTIONS:
             self.call_next(self.run_action, key)
+
+    # -- theme -------------------------------------------------------------
+    def _apply_saved_theme(self) -> None:
+        prefs = load_json(_PREFS_FILE, {})
+        pref = prefs.get("theme") if isinstance(prefs, dict) else None
+        pref = pref or self.config.theme
+        self.theme = LIGHT_THEME if pref == "light" else DARK_THEME
+
+    def action_toggle_theme(self) -> None:
+        to_dark = self.theme != DARK_THEME
+        self.theme = DARK_THEME if to_dark else LIGHT_THEME
+        save_json(_PREFS_FILE, {"theme": "dark" if to_dark else "light"})
+        self._status.show_message("Dark mode" if to_dark else "Light mode")
 
     def action_about(self) -> None:
         self.notify(

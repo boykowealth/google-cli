@@ -16,10 +16,12 @@ from rich.markup import escape
 
 from ..models import Link, Page
 
-# Chrome blue, used for link numbers/anchors.
+# Chrome blue reads on both light and dark terminals. Headings use the theme's
+# own foreground (bold only) so they adapt; code uses a fixed dark chip, which is
+# a familiar convention that stays legible in either theme.
 LINK_STYLE = "#4285F4"
-HEADING_STYLE = "bold #E8EAED"
-CODE_STYLE = "#FBBC05 on #202124"
+HEADING_STYLE = "bold"
+CODE_STYLE = "#E8EAED on #2B2B2B"
 
 _BLOCK_TAGS = {
     "p",

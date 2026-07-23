@@ -8,22 +8,48 @@ from textual.widgets import Static
 
 from ..models import Page, SearchResult
 
+_B = "#4285F4"  # Chrome blue, used for the shortcut keys.
+
+
+def _shortcut(key: str, desc: str) -> str:
+    return f"   [{_B}]{key:<14}[/] [dim]{desc}[/dim]"
+
+
 WELCOME = [
     "",
     "[bold]Welcome to [#4285F4]g[#EA4335]o[#FBBC05]o[#4285F4]g[#34A853]l[#EA4335]e[/][/]"
     " — your terminal browser.[/bold]",
     "",
     "[dim]Type a URL or a search in the omnibox above and press Enter.[/dim]",
-    "[dim]Follow a link by typing its [#4285F4]number[/dim][dim] then Enter, or click it.[/dim]",
-    "[dim]Press [#4285F4]Ctrl+O[/dim][dim] anytime to open the current page"
-    " in your real browser ↗.[/dim]",
-    "[dim]Press [b]?[/b] any time for keyboard shortcuts.[/dim]",
+    "[dim]Follow a link by typing its number then Enter, or click it.[/dim]",
+    "",
+    "[bold]Keyboard shortcuts[/bold]",
+    "",
+    _shortcut("Ctrl+L", "Focus the address bar / omnibox"),
+    _shortcut("Enter", "Visit URL · search · follow a typed link number"),
+    _shortcut("Ctrl+T", "New tab"),
+    _shortcut("Ctrl+W", "Close tab"),
+    _shortcut("Ctrl+Tab", "Next tab"),
+    _shortcut("Shift+Ctrl+Tab", "Previous tab"),
+    _shortcut("Alt+←  Alt+→", "Back · forward"),
+    _shortcut("Ctrl+R", "Reload"),
+    _shortcut("Ctrl+O", "Open current page in your real browser ↗"),
+    _shortcut("Ctrl+D", "Bookmark this page"),
+    _shortcut("Ctrl+H", "History"),
+    _shortcut("Ctrl+B", "Bookmarks"),
+    _shortcut("F6", "Toggle light / dark mode"),
+    _shortcut("F2", "Open the ⋮ menu"),
+    _shortcut("digits, Enter", "Follow link by number  (Esc cancels)"),
+    _shortcut("?", "Show this shortcuts list"),
+    _shortcut("Ctrl+Q", "Quit"),
     "",
 ]
 
 
 class PageView(VerticalScroll):
     """Displays rendered page content or search results."""
+
+    can_focus = True  # so arrow keys / PageUp / space scroll the page
 
     def compose(self):
         yield Static("", id="page-content", markup=True)
